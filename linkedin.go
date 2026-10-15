@@ -222,9 +222,10 @@ func (c *linkedinClient) request(ctx context.Context, method, path string, body 
 	req.AddCookie(&http.Cookie{Name: "li_at", Value: c.session.LIAT})
 	req.AddCookie(&http.Cookie{Name: "JSESSIONID", Value: c.session.JSessionID, Quoted: true})
 	c.lastRequestAt = time.Now()
+	started := time.Now()
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("request LinkedIn: %w", err)
+		return nil, c.requestFailure(req, nil, started, fmt.Errorf("request LinkedIn: %w", err))
 	}
 	var statusError error
 	switch resp.StatusCode {
@@ -241,8 +242,7 @@ func (c *linkedinClient) request(ctx context.Context, method, path string, body 
 			statusError = fmt.Errorf("LinkedIn returned HTTP %d", resp.StatusCode)
 		}
 	}
-	resp.Body.Close()
-	return nil, statusError
+	return nil, c.requestFailure(req, resp, started, statusError)
 }
 
 func (c *linkedinClient) resolve(ctx context.Context, company companyRef) (companyRef, error) {

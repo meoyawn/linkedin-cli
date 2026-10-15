@@ -21,6 +21,9 @@ import (
 const (
 	conversationsByRecipientsQueryID = "messengerConversations.9c3ab648b616451570c715e4a184465e"
 	messagesBySyncTokenQueryID       = "messengerMessages.5846eeb71c981f11e0134cb6626cc314"
+	composeViewContextsQueryID       = "voyagerMessagingDashComposeViewContexts.e3682e895986d41a9c3276d8072c984a"
+	connectionComposeOption          = "CONNECTION_MESSAGE"
+	premiumInMailComposeOption       = "PREMIUM_INMAIL"
 )
 
 type messageBody struct {
@@ -65,6 +68,7 @@ type messageSendResult struct {
 	MessageURN      string `json:"message_urn,omitempty"`
 	ConversationURL string `json:"conversation_url,omitempty"`
 	OriginToken     string `json:"origin_token,omitempty"`
+	FreeInMail      bool   `json:"free_inmail,omitempty"`
 }
 
 func runMessages(ctx context.Context, args []string, store authStore, stdout, stderr io.Writer) error {
@@ -246,6 +250,64 @@ func (c *linkedinClient) messages(ctx context.Context, ref profileRef) (messages
 	return result, nil
 }
 
+// Compose options and the free-message footer were observed in the signed-in
+// browser. The premiumInMail payload comes from its loaded messaging client.
+// A Message button alone does not establish permission to send normal messages.
+func (c *linkedinClient) freeInMail(ctx context.Context, recipient person) (bool, error) {
+	id, ok := strings.CutPrefix(recipient.ProfileURN, "urn:li:fsd_profile:")
+	if !ok || !profileID.MatchString(id) {
+		return false, fmt.Errorf("invalid messaging recipient profile URN %q", recipient.ProfileURN)
+	}
+	expectedURN := "urn:li:fsd_composeOption:(" + id + ",NON_SELF_PROFILE_VIEW,EMPTY_CONTEXT_ENTITY_URN)"
+	var options struct {
+		Data struct {
+			URN     string `json:"entityUrn"`
+			Type    string `json:"composeOptionType"`
+			Context struct {
+				Recipients []string `json:"recipientUrns"`
+				Paid       *bool    `json:"paidInMail"`
+			} `json:"composeNavigationContext"`
+		} `json:"data"`
+	}
+	if err := c.getJSON(ctx, "/voyager/api/voyagerMessagingDashComposeOptions/"+url.PathEscape(expectedURN), &options); err != nil {
+		return false, fmt.Errorf("read messaging compose options: %w", err)
+	}
+	if options.Data.URN != expectedURN || len(options.Data.Context.Recipients) != 1 || options.Data.Context.Recipients[0] != recipient.ProfileURN {
+		return false, fmt.Errorf("compose options do not confirm the exact recipient %s", recipient.URL)
+	}
+	switch options.Data.Type {
+	case connectionComposeOption:
+		return false, nil
+	case premiumInMailComposeOption:
+		if options.Data.Context.Paid == nil || *options.Data.Context.Paid {
+			return false, fmt.Errorf("only verified free InMail is supported; paid or unknown InMail stopped without sending")
+		}
+	default:
+		return false, fmt.Errorf("unsupported compose option %q for %s; stopped without sending", options.Data.Type, recipient.URL)
+	}
+	var view struct {
+		Data struct {
+			Data struct {
+				Contexts struct {
+					Elements []struct {
+						Blocked bool     `json:"showBlockedFooter"`
+						Footer  textView `json:"footerText"`
+					} `json:"elements"`
+				} `json:"messagingDashComposeViewContextsByRecipients"`
+			} `json:"data"`
+		} `json:"data"`
+	}
+	variables := "(recipients:List(" + url.QueryEscape(recipient.ProfileURN) + "),type:" + premiumInMailComposeOption + ")"
+	if err := c.getJSON(ctx, "/voyager/api/graphql?variables="+variables+"&queryId="+composeViewContextsQueryID, &view); err != nil {
+		return false, fmt.Errorf("verify free InMail: %w", err)
+	}
+	contexts := view.Data.Data.Contexts.Elements
+	if len(contexts) != 1 || contexts[0].Blocked || !strings.HasPrefix(contexts[0].Footer.Text, "Free message") {
+		return false, fmt.Errorf("LinkedIn did not confirm free InMail for %s; stopped without sending or spending credits", recipient.URL)
+	}
+	return true, nil
+}
+
 func (c *linkedinClient) sendMessage(ctx context.Context, ref profileRef, text string, execute bool) (messageSendResult, error) {
 	if !utf8.ValidString(text) || strings.TrimSpace(text) == "" || len(text) > 1<<20 {
 		return messageSendResult{}, fmt.Errorf("message text must be nonempty UTF-8 no larger than 1 MiB")
@@ -259,6 +321,12 @@ func (c *linkedinClient) sendMessage(ctx context.Context, ref profileRef, text s
 		if m.Body.Text == text && (m.Sender.ProfileURN == thread.MailboxURN || m.SenderURN == "urn:li:msg_messagingParticipant:"+thread.MailboxURN) {
 			result.AlreadyPresent, result.MessageURN = true, m.URN
 			return result, nil
+		}
+	}
+	if thread.ConversationURN == "" {
+		result.FreeInMail, err = c.freeInMail(ctx, thread.Recipient)
+		if err != nil {
+			return messageSendResult{}, err
 		}
 	}
 	if !execute {
@@ -287,11 +355,19 @@ func (c *linkedinClient) sendMessage(ctx context.Context, ref profileRef, text s
 			OriginToken        string            `json:"originToken"`
 			RenderContentUnion []json.RawMessage `json:"renderContentUnions"`
 		} `json:"message"`
-		MailboxURN       string   `json:"mailboxUrn"`
-		TrackingID       string   `json:"trackingId"`
-		Dedupe           bool     `json:"dedupeByClientGeneratedToken"`
-		HostRecipientURN []string `json:"hostRecipientUrns"`
+		MailboxURN       string         `json:"mailboxUrn"`
+		TrackingID       string         `json:"trackingId"`
+		Dedupe           bool           `json:"dedupeByClientGeneratedToken"`
+		HostRecipientURN []string       `json:"hostRecipientUrns"`
+		HostContent      map[string]any `json:"hostMessageCreateContent,omitempty"`
 	}{MailboxURN: thread.MailboxURN, TrackingID: string(trackingRunes), HostRecipientURN: []string{thread.Recipient.ProfileURN}}
+	if result.FreeInMail {
+		payload.HostContent = map[string]any{
+			"com.linkedin.voyager.dash.messaging.MessageCreateContent": map[string]any{
+				"messageCreateContentUnion": map[string]any{"premiumInMail": struct{}{}},
+			},
+		}
+	}
 	payload.Message.Body = messageBody{Attributes: []json.RawMessage{}, Text: text}
 	payload.Message.OriginToken = token
 	payload.Message.RenderContentUnion = []json.RawMessage{}

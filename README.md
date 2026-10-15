@@ -117,7 +117,7 @@ To inspect a changed response, pass `--save-response private/mutuals.html`
 after creating the ignored `private/` directory. The new capture file is written
 with mode 0600 and is never overwritten. It can contain private profile data.
 
-## Direct messages
+## Direct messages and free InMail
 
 ```sh
 linkedin messages read example-person
@@ -129,6 +129,12 @@ linkedin messages send example-person --text-file /path/to/message.txt --send
 text, including links, and wait for explicit approval before adding `--send`.
 Use UTF-8 plain text with ordinary URLs: LinkedIn does not interpret Markdown.
 File contents, including newlines, are sent unchanged.
+
+For a new conversation, preview and send both check the exact recipient's
+compose options. Open Profile recipients with a confirmed "Free message"
+context use the InMail payload automatically; preview returns `free_inmail:true`.
+No subject is added. Paid, blocked, unknown, or unsupported compose modes stop
+without sending or spending credits.
 
 Both commands identify the signed-in mailbox and resolve the recipient, then
 look up their direct conversation. If present, they verify its two participants
@@ -145,8 +151,9 @@ Test changes with local fixtures or mocks; never send live test messages.
 
 ## HTTP budget
 
-Messages use three GET requests when there is no existing conversation, four
-when there is one, plus one POST only when `messages send --send` actually sends.
+Reading messages uses three GET requests without an existing conversation and
+four with one. A new-message preview/send adds one compose-options GET and,
+for free InMail, one compose-context GET. Actual sending adds one POST.
 
 The people API accepts the company ID directly, so no general search or HTML
 page load is needed.
@@ -171,6 +178,14 @@ This uses LinkedIn's browser API and observed persisted query IDs.
 If LinkedIn changes that API, the CLI reports an error. HAR files, credentials,
 and the compiled executable are excluded from version control. Test fixtures
 retain the captured response structure with synthetic people and no cookies.
+
+HTTP and transport failures include detailed diagnostics on stderr: method,
+URL, timing, selected request/response headers, request JSON structure, and up
+to 16 KiB of the error response (including service error codes and messages).
+Cookie/auth headers are omitted; credentials, message text, and subjects are
+redacted. stdout remains reserved for successful JSON results. Diagnostics can
+still contain recipient identifiers and server error details, so review them
+before sharing.
 
 ```sh
 go test ./...

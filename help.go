@@ -212,11 +212,16 @@ Show the exact recipient and text to the human, including all URLs, and obtain
 explicit approval before using --send. LinkedIn does not interpret Markdown;
 use plain URLs. The file text is preserved, including newlines.
 
+New conversations check compose options. Confirmed free Open Profile InMail
+is supported automatically and previews include free_inmail:true. No subject
+is added. Paid, blocked, or unknown InMail stops without spending credits.
+
 Both modes read recent messages first. An identical outgoing message in that
 page returns already_present:true without sending. This check covers only
 the fetched page, not the entire history. A send makes one POST with no retry.
 After a timeout or unexpected receipt, read the conversation before retrying.
 Do not test with live messages. Tests must use local fixtures or mocks.
+HTTP failures include bounded, credential-redacted diagnostics on stderr.
 `
 
 const loginHelp = `Import your signed-in LinkedIn browser session with SweetCookie.
