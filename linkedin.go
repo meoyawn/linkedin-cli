@@ -190,6 +190,10 @@ func (c *linkedinClient) getJSON(ctx context.Context, path string, result any) e
 }
 
 func (c *linkedinClient) get(ctx context.Context, path string, headers http.Header) (*http.Response, error) {
+	return c.request(ctx, http.MethodGet, path, nil, headers)
+}
+
+func (c *linkedinClient) request(ctx context.Context, method, path string, body io.Reader, headers http.Header) (*http.Response, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -204,7 +208,7 @@ func (c *linkedinClient) get(ctx context.Context, path string, headers http.Head
 		case <-timer.C:
 		}
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://www.linkedin.com"+path, nil)
+	req, err := http.NewRequestWithContext(ctx, method, "https://www.linkedin.com"+path, body)
 	if err != nil {
 		return nil, fmt.Errorf("construct LinkedIn request: %w", err)
 	}

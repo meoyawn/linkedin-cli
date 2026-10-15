@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/steipete/sweetcookie v0.0.2
+	go.uber.org/goleak v1.3.0
 	golang.org/x/net v0.57.0
 )
 

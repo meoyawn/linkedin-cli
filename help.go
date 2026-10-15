@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-const rootHelp = `LinkedIn company people, profiles, and mutual connections, as JSON.
+const rootHelp = `LinkedIn people, profiles, mutual connections, and messages, as JSON.
 
 Usage:
   linkedin <command> [flags]
@@ -15,6 +15,8 @@ Commands:
   companies people <company>  List people at a company
   people profile <person>     Read a profile and its summary
   people mutuals <person>     Find shared first-degree connections
+  messages read <person>      Read recent messages in a direct conversation
+  messages send <person>      Preview or send approved plain text
   auth login                  Import browser cookies with SweetCookie
   auth status                 Check saved cookies locally
   auth logout                 Remove saved cookies
@@ -172,6 +174,51 @@ make no HTTP requests. Set LINKEDIN_CONFIG_DIR to choose the storage directory.
 Run 'linkedin auth <command> --help' for options.
 `
 
+const messagesHelp = `Read direct conversations and send approved plain text.
+
+Usage:
+  linkedin messages read <person>
+  linkedin messages send <person> --text-file PATH [--send]
+
+The person is a LinkedIn profile slug, /in/ URL, or fsd_profile URN.
+Run each command sequentially. Authentication failures and rate limits stop
+the command without retries. No read receipts are sent by the read command.
+
+Run 'linkedin messages read --help' or 'linkedin messages send --help'.
+`
+
+const messagesReadHelp = `Read recent messages with one exact LinkedIn recipient.
+
+Usage:
+  linkedin messages read <person>
+
+Resolves the signed-in mailbox and recipient, verifies a direct conversation,
+and reads one page of recent messages. No pagination or read receipts.
+An empty conversation list is returned as messages:[]; unexpected or ambiguous
+responses fail. Returned text and identifiers may contain private data.
+`
+
+const messagesSendHelp = `Preview or send an approved LinkedIn message.
+
+Usage:
+  linkedin messages send <person> --text-file PATH [--send]
+
+Options:
+      --text-file PATH       File containing the exact UTF-8 plain text
+      --send                 Actually send; default only previews
+  -h, --help                 Show help
+
+Show the exact recipient and text to the human, including all URLs, and obtain
+explicit approval before using --send. LinkedIn does not interpret Markdown;
+use plain URLs. The file text is preserved, including newlines.
+
+Both modes read recent messages first. An identical outgoing message in that
+page returns already_present:true without sending. This check covers only
+the fetched page, not the entire history. A send makes one POST with no retry.
+After a timeout or unexpected receipt, read the conversation before retrying.
+Do not test with live messages. Tests must use local fixtures or mocks.
+`
+
 const loginHelp = `Import your signed-in LinkedIn browser session with SweetCookie.
 
 Usage:
@@ -243,6 +290,12 @@ func writeHelp(w io.Writer, commands []string) error {
 		help = profileHelp
 	case "people mutuals":
 		help = mutualsHelp
+	case "messages":
+		help = messagesHelp
+	case "messages read":
+		help = messagesReadHelp
+	case "messages send":
+		help = messagesSendHelp
 	case "auth":
 		help = authHelp
 	case "auth login":

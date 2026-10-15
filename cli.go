@@ -77,6 +77,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return writeJSON(stdout, result)
 	case "people":
 		return runPeople(ctx, args[1:], store, stdout, stderr)
+	case "messages":
+		return runMessages(ctx, args[1:], store, stdout, stderr)
 	case "auth":
 		return runAuth(ctx, args[1:], store, stdout, stderr)
 	default:

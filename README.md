@@ -1,6 +1,6 @@
 # linkedin
 
-A Go CLI that returns LinkedIn company people, profiles, and mutual connections as JSON using your browser's
+A Go CLI that returns LinkedIn company people, profiles, mutual connections, and messages as JSON using your browser's
 signed-in session. Cookie import uses [SweetCookie](https://github.com/steipete/sweetcookie/).
 
 ```sh
@@ -117,7 +117,36 @@ To inspect a changed response, pass `--save-response private/mutuals.html`
 after creating the ignored `private/` directory. The new capture file is written
 with mode 0600 and is never overwritten. It can contain private profile data.
 
+## Direct messages
+
+```sh
+linkedin messages read example-person
+linkedin messages send example-person --text-file /path/to/message.txt
+linkedin messages send example-person --text-file /path/to/message.txt --send
+```
+
+`messages send` previews by default. Show the human the exact recipient and final
+text, including links, and wait for explicit approval before adding `--send`.
+Use UTF-8 plain text with ordinary URLs: LinkedIn does not interpret Markdown.
+File contents, including newlines, are sent unchanged.
+
+Both commands identify the signed-in mailbox and resolve the recipient, then
+look up their direct conversation. If present, they verify its two participants
+before reading one page of recent messages. Reading sends no read receipts.
+No historical pagination is performed. Sending first checks that page for an
+identical outgoing message and returns `already_present:true` without sending
+it again. This does not search older messages or prevent concurrent sends.
+
+An actual send makes a single POST using the observed `createMessage` contract.
+Only a matching server receipt is reported as `sent:true`. No send is retried
+automatically. After an uncertain outcome, read the conversation and inspect
+the returned text and origin token before deciding whether to send again.
+Test changes with local fixtures or mocks; never send live test messages.
+
 ## HTTP budget
+
+Messages use three GET requests when there is no existing conversation, four
+when there is one, plus one POST only when `messages send --send` actually sends.
 
 The people API accepts the company ID directly, so no general search or HTML
 page load is needed.
