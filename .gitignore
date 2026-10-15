@@ -1,0 +1,23 @@
+# Compiled output and local tooling
+/linkedin
+/linkedin-cli
+/dist/
+/coverage/
+*.test
+*.out
+*.log
+.DS_Store
+
+# Browser captures, cookies, and credentials
+*.har
+*.har.*
+*cookies*.json
+*cookies*.txt
+.cookies-*
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx

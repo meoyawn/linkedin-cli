@@ -1,0 +1,289 @@
+{
+  "data": {
+    "data": {
+      "searchDashClustersByAll": {
+        "metadata": {
+          "totalResultCount": 15,
+          "blockedQueryError": null
+        },
+        "paging": {
+          "start": 0,
+          "count": 12,
+          "total": 15
+        },
+        "elements": [
+          {
+            "items": [
+              {
+                "item": {
+                  "*entityResult": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake01,SEARCH_SRP,DEFAULT)"
+                }
+              },
+              {
+                "item": {
+                  "*entityResult": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake02,SEARCH_SRP,DEFAULT)"
+                }
+              },
+              {
+                "item": {
+                  "*entityResult": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake03,SEARCH_SRP,DEFAULT)"
+                }
+              },
+              {
+                "item": {
+                  "*entityResult": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake04,SEARCH_SRP,DEFAULT)"
+                }
+              },
+              {
+                "item": {
+                  "*entityResult": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake05,SEARCH_SRP,DEFAULT)"
+                }
+              },
+              {
+                "item": {
+                  "*entityResult": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake06,SEARCH_SRP,DEFAULT)"
+                }
+              },
+              {
+                "item": {
+                  "*entityResult": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake07,SEARCH_SRP,DEFAULT)"
+                }
+              },
+              {
+                "item": {
+                  "*entityResult": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake08,SEARCH_SRP,DEFAULT)"
+                }
+              },
+              {
+                "item": {
+                  "*entityResult": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake09,SEARCH_SRP,DEFAULT)"
+                }
+              },
+              {
+                "item": {
+                  "*entityResult": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake10,SEARCH_SRP,DEFAULT)"
+                }
+              },
+              {
+                "item": {
+                  "*entityResult": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake11,SEARCH_SRP,DEFAULT)"
+                }
+              },
+              {
+                "item": {
+                  "*entityResult": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake12,SEARCH_SRP,DEFAULT)"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "included": [
+    {
+      "entityUrn": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake12,SEARCH_SRP,DEFAULT)",
+      "title": {
+        "text": "Person 12"
+      },
+      "primarySubtitle": {
+        "text": "Engineer 12"
+      },
+      "secondarySubtitle": {
+        "text": "Test City"
+      },
+      "badgeText": {
+        "text": "\u2022 2nd"
+      },
+      "navigationUrl": "https://www.linkedin.com/in/person-12?miniProfileUrn=urn%3Ali%3Afs_miniProfile%3Afake12",
+      "trackingUrn": "urn:li:member:12"
+    },
+    {
+      "entityUrn": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake11,SEARCH_SRP,DEFAULT)",
+      "title": {
+        "text": "Person 11"
+      },
+      "primarySubtitle": {
+        "text": "Engineer 11"
+      },
+      "secondarySubtitle": {
+        "text": "Test City"
+      },
+      "badgeText": {
+        "text": "\u2022 2nd"
+      },
+      "navigationUrl": "https://www.linkedin.com/in/person-11?miniProfileUrn=urn%3Ali%3Afs_miniProfile%3Afake11",
+      "trackingUrn": "urn:li:member:11"
+    },
+    {
+      "entityUrn": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake10,SEARCH_SRP,DEFAULT)",
+      "title": {
+        "text": "Person 10"
+      },
+      "primarySubtitle": {
+        "text": "Engineer 10"
+      },
+      "secondarySubtitle": {
+        "text": "Test City"
+      },
+      "badgeText": {
+        "text": "\u2022 2nd"
+      },
+      "navigationUrl": "https://www.linkedin.com/in/person-10?miniProfileUrn=urn%3Ali%3Afs_miniProfile%3Afake10",
+      "trackingUrn": "urn:li:member:10"
+    },
+    {
+      "entityUrn": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake09,SEARCH_SRP,DEFAULT)",
+      "title": {
+        "text": "Person 09"
+      },
+      "primarySubtitle": {
+        "text": "Engineer 09"
+      },
+      "secondarySubtitle": {
+        "text": "Test City"
+      },
+      "badgeText": {
+        "text": "\u2022 2nd"
+      },
+      "navigationUrl": "https://www.linkedin.com/in/person-09?miniProfileUrn=urn%3Ali%3Afs_miniProfile%3Afake09",
+      "trackingUrn": "urn:li:member:9"
+    },
+    {
+      "entityUrn": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake08,SEARCH_SRP,DEFAULT)",
+      "title": {
+        "text": "Person 08"
+      },
+      "primarySubtitle": {
+        "text": "Engineer 08"
+      },
+      "secondarySubtitle": {
+        "text": "Test City"
+      },
+      "badgeText": {
+        "text": "\u2022 2nd"
+      },
+      "navigationUrl": "https://www.linkedin.com/in/person-08?miniProfileUrn=urn%3Ali%3Afs_miniProfile%3Afake08",
+      "trackingUrn": "urn:li:member:8"
+    },
+    {
+      "entityUrn": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake07,SEARCH_SRP,DEFAULT)",
+      "title": {
+        "text": "Person 07"
+      },
+      "primarySubtitle": {
+        "text": "Engineer 07"
+      },
+      "secondarySubtitle": {
+        "text": "Test City"
+      },
+      "badgeText": {
+        "text": "\u2022 2nd"
+      },
+      "navigationUrl": "https://www.linkedin.com/in/person-07?miniProfileUrn=urn%3Ali%3Afs_miniProfile%3Afake07",
+      "trackingUrn": "urn:li:member:7"
+    },
+    {
+      "entityUrn": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake06,SEARCH_SRP,DEFAULT)",
+      "title": {
+        "text": "Person 06"
+      },
+      "primarySubtitle": {
+        "text": "Engineer 06"
+      },
+      "secondarySubtitle": {
+        "text": "Test City"
+      },
+      "badgeText": {
+        "text": "\u2022 2nd"
+      },
+      "navigationUrl": "https://www.linkedin.com/in/person-06?miniProfileUrn=urn%3Ali%3Afs_miniProfile%3Afake06",
+      "trackingUrn": "urn:li:member:6"
+    },
+    {
+      "entityUrn": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake05,SEARCH_SRP,DEFAULT)",
+      "title": {
+        "text": "Person 05"
+      },
+      "primarySubtitle": {
+        "text": "Engineer 05"
+      },
+      "secondarySubtitle": {
+        "text": "Test City"
+      },
+      "badgeText": {
+        "text": "\u2022 2nd"
+      },
+      "navigationUrl": "https://www.linkedin.com/in/person-05?miniProfileUrn=urn%3Ali%3Afs_miniProfile%3Afake05",
+      "trackingUrn": "urn:li:member:5"
+    },
+    {
+      "entityUrn": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake04,SEARCH_SRP,DEFAULT)",
+      "title": {
+        "text": "Person 04"
+      },
+      "primarySubtitle": {
+        "text": "Engineer 04"
+      },
+      "secondarySubtitle": {
+        "text": "Test City"
+      },
+      "badgeText": {
+        "text": "\u2022 2nd"
+      },
+      "navigationUrl": "https://www.linkedin.com/in/person-04?miniProfileUrn=urn%3Ali%3Afs_miniProfile%3Afake04",
+      "trackingUrn": "urn:li:member:4"
+    },
+    {
+      "entityUrn": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake03,SEARCH_SRP,DEFAULT)",
+      "title": {
+        "text": "Person 03"
+      },
+      "primarySubtitle": {
+        "text": "Engineer 03"
+      },
+      "secondarySubtitle": {
+        "text": "Test City"
+      },
+      "badgeText": {
+        "text": "\u2022 2nd"
+      },
+      "navigationUrl": "https://www.linkedin.com/in/person-03?miniProfileUrn=urn%3Ali%3Afs_miniProfile%3Afake03",
+      "trackingUrn": "urn:li:member:3"
+    },
+    {
+      "entityUrn": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake02,SEARCH_SRP,DEFAULT)",
+      "title": {
+        "text": "Person 02"
+      },
+      "primarySubtitle": {
+        "text": "Engineer 02"
+      },
+      "secondarySubtitle": {
+        "text": "Test City"
+      },
+      "badgeText": {
+        "text": "\u2022 2nd"
+      },
+      "navigationUrl": "https://www.linkedin.com/in/person-02?miniProfileUrn=urn%3Ali%3Afs_miniProfile%3Afake02",
+      "trackingUrn": "urn:li:member:2"
+    },
+    {
+      "entityUrn": "urn:li:fsd_entityResultViewModel:(urn:li:fsd_profile:fake01,SEARCH_SRP,DEFAULT)",
+      "title": {
+        "text": "Person 01"
+      },
+      "primarySubtitle": {
+        "text": "Engineer 01"
+      },
+      "secondarySubtitle": {
+        "text": "Test City"
+      },
+      "badgeText": {
+        "text": "\u2022 2nd"
+      },
+      "navigationUrl": "https://www.linkedin.com/in/person-01?miniProfileUrn=urn%3Ali%3Afs_miniProfile%3Afake01",
+      "trackingUrn": "urn:li:member:1"
+    }
+  ]
+}

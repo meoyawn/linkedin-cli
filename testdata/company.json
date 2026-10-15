@@ -1,0 +1,11 @@
+{
+  "data": {
+    "data": {
+      "organizationDashCompaniesByUniversalName": {
+        "*elements": [
+          "urn:li:fsd_company:123456789"
+        ]
+      }
+    }
+  }
+}
