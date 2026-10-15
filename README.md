@@ -97,15 +97,21 @@ linkedin people mutuals urn:li:fsd_profile:ACoExample
 available location, and profile/member URNs in one API request. It does not
 export private contact fields or fetch the full experience history.
 
-`people mutuals` uses the authenticated search document request captured from
-LinkedIn's mutual-connections view. It reads up to 10 shared first-degree
-connections from the first page and reports `has_more` without fetching another
-page. `--limit` accepts 1–10. Profile URNs skip the profile lookup; slugs/URLs
-need one extra API request. It parses result cards using semantic attributes,
-ignoring sidebar/related-person links and scripts. An unrecognized response or
-non-first-degree result fails explicitly. No scripts, analytics, messages, or
-connection requests are executed. Results are potential introduction paths;
-willingness to refer remains unconfirmed.
+`people mutuals` resolves the target profile, loads its document, and follows
+only a link explicitly labelled as mutual connections by that profile, for its
+exact identifier and first-degree network. If LinkedIn does not expose that
+action, it fails without searching or returning generic contacts. Successful output includes
+`verified: true`, the canonical target profile, the observed `search_url`, and
+the source label in `profile_evidence`; older cached output without verification
+is unverified. Verification establishes the LinkedIn introduction path, not
+willingness to refer or the strength of the relationship.
+It reads up to 10 contacts from the first page and reports `has_more` without
+fetching another page. `--limit` accepts 1–10. All inputs need three sequential
+requests on success, including profile URNs. It parses result cards using
+semantic attributes, ignoring sidebar/related-person links and scripts.
+An unrecognized response or non-first-degree result fails explicitly.
+No scripts, analytics, messages, or connection requests are executed.
+Results are potential introduction paths; willingness to refer remains unconfirmed.
 
 To inspect a changed response, pass `--save-response private/mutuals.html`
 after creating the ignored `private/` directory. The new capture file is written

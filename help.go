@@ -138,13 +138,17 @@ Examples:
   linkedin people mutuals https://www.linkedin.com/in/example-person/ --limit 3
   linkedin people mutuals urn:li:fsd_profile:ACoExample
 
-One authenticated document GET reads the first page. Slugs/URLs need one prior
-profile lookup; known profile URNs skip it. has_more reports additional results
-without fetching them. No --all or automatic pagination. No scripts, analytics,
-messages, or connection requests are executed. Names are potential introduction
-paths; a result does not establish willingness to refer you.
+Resolve the target and require its profile to expose an exact mutual-search link
+labelled as mutual connections before reading the first page (three sequential
+requests on success). Missing confirmation fails without returning generic
+contacts. Successful output includes verified:true and profile_evidence with
+the source label; older cached results are unverified. has_more reports additional
+results without fetching them. No --all or automatic pagination. No scripts,
+analytics, messages, or connection requests are executed. Names are potential
+introduction paths; a result does not establish willingness to refer you.
 
-Output includes profile, search_url, people, returned, and has_more.
+Output includes profile, search_url, profile_evidence, people, returned,
+has_more, and verified.
 `
 
 const authHelp = `Manage the browser cookies used to sign in to LinkedIn.

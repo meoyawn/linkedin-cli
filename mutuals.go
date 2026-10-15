@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,33 +15,42 @@ import (
 const mutualsPageSize = 10
 
 type mutualsResult struct {
-	Profile   profileRef `json:"profile"`
-	SearchURL string     `json:"search_url"`
-	People    []person   `json:"people"`
-	Returned  int        `json:"returned"`
-	HasMore   bool       `json:"has_more"`
+	Profile         profileRef `json:"profile"`
+	SearchURL       string     `json:"search_url"`
+	ProfileEvidence string     `json:"profile_evidence"`
+	People          []person   `json:"people"`
+	Returned        int        `json:"returned"`
+	HasMore         bool       `json:"has_more"`
+	Verified        bool       `json:"verified"`
 }
 
 func (c *linkedinClient) mutuals(ctx context.Context, ref profileRef, limit int) (mutualsResult, error) {
 	if limit < 1 || limit > mutualsPageSize {
 		return mutualsResult{}, fmt.Errorf("mutuals --limit must be between 1 and %d; got %d", mutualsPageSize, limit)
 	}
-	if ref.ID == "" {
-		profile, err := c.profile(ctx, ref)
-		if err != nil {
-			return mutualsResult{}, err
-		}
-		ref.ID = strings.TrimPrefix(profile.ProfileURN, "urn:li:fsd_profile:")
-		ref.URL = profile.URL
+	profile, err := c.profile(ctx, ref)
+	if err != nil {
+		return mutualsResult{}, err
 	}
-	// Captured from the signed-in mutual-connections view. The server returns
-	// the first page in the document; no scripts or RSC side effects are needed.
-	query := url.Values{
-		"origin":       {"MEMBER_PROFILE_CANNED_SEARCH"},
-		"network":      {`["F"]`},
-		"connectionOf": {`["` + ref.ID + `"]`},
+	id := strings.TrimPrefix(profile.ProfileURN, "urn:li:fsd_profile:")
+	if ref.ID != "" && ref.ID != id {
+		return mutualsResult{}, fmt.Errorf("LinkedIn resolved a different target profile; mutual connections are unconfirmed")
 	}
-	path := "/search/results/people/?" + query.Encode()
+	ref, err = parseProfile(profile.URL)
+	if err != nil {
+		return mutualsResult{}, fmt.Errorf("resolve mutual-connections target: %w", err)
+	}
+	ref.ID = id
+	profileURL, _ := url.Parse(ref.URL)
+	profileResponse, err := c.get(ctx, profileURL.RequestURI(), http.Header{"Accept": {"text/html"}, "Accept-Language": {"en-US,en;q=0.9"}})
+	if err != nil {
+		return mutualsResult{}, fmt.Errorf("fetch mutual-connections target: %w", err)
+	}
+	path, evidence, err := mutualsPath(io.LimitReader(profileResponse.Body, 8<<20), ref.ID)
+	profileResponse.Body.Close()
+	if err != nil {
+		return mutualsResult{}, err
+	}
 	resp, err := c.get(ctx, path, http.Header{"Accept": {"text/html"}, "Accept-Language": {"en-US,en;q=0.9"}})
 	if err != nil {
 		return mutualsResult{}, fmt.Errorf("fetch mutual connections: %w", err)
@@ -57,7 +67,44 @@ func (c *linkedinClient) mutuals(ctx context.Context, ref profileRef, limit int)
 	if len(people) > limit {
 		people, hasMore = people[:limit], true
 	}
-	return mutualsResult{Profile: ref, SearchURL: "https://www.linkedin.com" + path, People: people, Returned: len(people), HasMore: hasMore}, nil
+	return mutualsResult{Profile: ref, SearchURL: "https://www.linkedin.com" + path, ProfileEvidence: evidence, People: people, Returned: len(people), HasMore: hasMore, Verified: true}, nil
+}
+
+// LinkedIn can return generic contacts for a connectionOf request. Only follow
+// a labelled mutual-search action exposed by the resolved target's profile;
+// a fabricated URL or echoed query is not evidence.
+func mutualsPath(r io.Reader, targetID string) (string, string, error) {
+	doc, err := html.Parse(r)
+	if err != nil {
+		return "", "", fmt.Errorf("parse mutual-connections target: %w", err)
+	}
+	for n := range doc.Descendants() {
+		if n.Type != html.ElementNode || n.Data != "a" {
+			continue
+		}
+		u, err := url.Parse(attr(n, "href"))
+		if err != nil || u.User != nil || u.Fragment != "" ||
+			(u.Scheme != "" && u.Scheme != "https") ||
+			(u.Host != "" && u.Host != "www.linkedin.com" && u.Host != "linkedin.com") ||
+			u.Path != "/search/results/people/" {
+			continue
+		}
+		q, err := url.ParseQuery(u.RawQuery)
+		if err != nil || len(q["network"]) != 1 || len(q["connectionOf"]) != 1 {
+			continue
+		}
+		var network, connections []string
+		if json.Unmarshal([]byte(q.Get("network")), &network) != nil || len(network) != 1 || network[0] != "F" ||
+			json.Unmarshal([]byte(q.Get("connectionOf")), &connections) != nil || len(connections) != 1 || connections[0] != targetID {
+			continue
+		}
+		evidence := nodeText(n)
+		if !strings.Contains(strings.ToLower(evidence), "mutual connection") {
+			continue
+		}
+		return u.RequestURI(), evidence, nil
+	}
+	return "", "", fmt.Errorf("LinkedIn did not expose a labelled mutual-connections search for this target; the connection path is unconfirmed (unavailable or changed profile response); no generic connections returned")
 }
 
 func parseMutualsPage(r io.Reader) ([]person, bool, error) {
