@@ -26,6 +26,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	if args[0] == "companies" && (len(args) == 1 || isHelpFlag(args[1])) {
 		return writeHelp(stdout, []string{"companies"})
 	}
+	if args[0] == "people" && (len(args) == 1 || isHelpFlag(args[1])) {
+		return writeHelp(stdout, []string{"people"})
+	}
 	dir := os.Getenv("LINKEDIN_CONFIG_DIR")
 	if dir == "" {
 		root, err := os.UserConfigDir()
@@ -63,25 +66,93 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		if *limit < 1 || *start < 0 {
 			return fmt.Errorf("--limit must be positive and --start nonnegative; got limit=%d start=%d", *limit, *start)
 		}
-		session, err := store.load()
+		client, err := newLinkedinClient(store)
 		if err != nil {
 			return err
 		}
-		httpClient := &http.Client{
-			Timeout:       30 * time.Second,
-			CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
-		}
-		client := linkedinClient{http: httpClient, session: session}
 		result, err := client.people(ctx, company, peopleOptions{limit: *limit, start: *start, all: *all})
 		if err != nil {
 			return err
 		}
 		return writeJSON(stdout, result)
+	case "people":
+		return runPeople(ctx, args[1:], store, stdout, stderr)
 	case "auth":
 		return runAuth(ctx, args[1:], store, stdout, stderr)
 	default:
 		return fmt.Errorf("unknown command %q; run linkedin --help", args[0])
 	}
+}
+
+func newLinkedinClient(store authStore) (linkedinClient, error) {
+	session, err := store.load()
+	if err != nil {
+		return linkedinClient{}, err
+	}
+	return linkedinClient{
+		http: &http.Client{
+			Timeout:       30 * time.Second,
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
+		},
+		session: session,
+	}, nil
+}
+
+func runPeople(ctx context.Context, args []string, store authStore, stdout, stderr io.Writer) error {
+	command := args[0]
+	if command != "profile" && command != "mutuals" {
+		return fmt.Errorf("unknown people command %q; expected profile or mutuals", command)
+	}
+	fs := flag.NewFlagSet("people "+command, flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	fs.Usage = func() { _ = writeHelp(stderr, []string{"people", command}) }
+	limit := mutualsPageSize
+	var saveResponse string
+	if command == "mutuals" {
+		fs.IntVar(&limit, "limit", mutualsPageSize, "maximum mutual connections from the first page (1–10)")
+		fs.StringVar(&saveResponse, "save-response", "", "save the fetched HTML to a new private file for debugging")
+	}
+	positionals, err := parseFlags(fs, args[1:])
+	if errors.Is(err, flag.ErrHelp) {
+		return writeHelp(stdout, []string{"people", command})
+	}
+	if err != nil {
+		return err
+	}
+	if len(positionals) != 1 {
+		return fmt.Errorf("people %s requires one profile slug, URL, or URN; got %d arguments", command, len(positionals))
+	}
+	ref, err := parseProfile(positionals[0])
+	if err != nil {
+		return err
+	}
+	if command == "mutuals" && (limit < 1 || limit > mutualsPageSize) {
+		return fmt.Errorf("mutuals --limit must be between 1 and %d; got %d", mutualsPageSize, limit)
+	}
+	client, err := newLinkedinClient(store)
+	if err != nil {
+		return err
+	}
+	if command == "mutuals" {
+		if saveResponse != "" {
+			capture, err := os.OpenFile(saveResponse, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+			if err != nil {
+				return fmt.Errorf("create response capture %q: %w", saveResponse, err)
+			}
+			defer capture.Close()
+			client.mutualsResponse = capture
+		}
+		result, err := client.mutuals(ctx, ref, limit)
+		if err != nil {
+			return err
+		}
+		return writeJSON(stdout, result)
+	}
+	result, err := client.profile(ctx, ref)
+	if err != nil {
+		return err
+	}
+	return writeJSON(stdout, result)
 }
 
 func runAuth(ctx context.Context, args []string, store authStore, stdout, stderr io.Writer) error {

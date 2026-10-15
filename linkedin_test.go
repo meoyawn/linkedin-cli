@@ -169,3 +169,24 @@ func TestPeopleFailsWithoutRetriesOrPartialSuccess(t *testing.T) {
 		})
 	}
 }
+
+// LinkedIn can stop an export by reporting zero results on a later page.
+// That must not turn a restricted search into a successful, complete export.
+func TestPeopleRejectsDisappearingTotals(t *testing.T) {
+	calls := 0
+	client := linkedinClient{http: &http.Client{Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+		calls++
+		if calls == 1 {
+			return jsonResponse(fixture(t, "people")), nil
+		}
+		return jsonResponse([]byte(`{"data":{"data":{"searchDashClustersByAll":{"metadata":{"totalResultCount":0},"paging":{"start":12,"count":49,"total":0},"elements":[]}}},"included":[]}`)), nil
+	})}}
+	company, err := parseCompany("123456789")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := client.people(context.Background(), company, peopleOptions{all: true})
+	if err == nil || !strings.Contains(err.Error(), "restricted") || calls != 2 || len(result.People) != 0 {
+		t.Fatalf("restricted search reported success or retried: calls=%d result=%+v err=%v", calls, result, err)
+	}
+}

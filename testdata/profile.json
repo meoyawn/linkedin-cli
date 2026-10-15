@@ -1,0 +1,23 @@
+{
+  "data": {
+    "*elements": ["urn:li:fsd_profile:ACoExamplePerson"]
+  },
+  "included": [
+    {
+      "entityUrn": "urn:li:fsd_profile:ACoUnrelatedPerson",
+      "firstName": "Unrelated",
+      "lastName": "Person"
+    },
+    {
+      "entityUrn": "urn:li:fsd_profile:ACoExamplePerson",
+      "objectUrn": "urn:li:member:123456",
+      "publicIdentifier": "example-person",
+      "firstName": "Example",
+      "lastName": "Person",
+      "headline": "Backend engineer",
+      "summary": "Builds payment services.",
+      "locationName": "Test City",
+      "emailAddress": "not-exported@example.invalid"
+    }
+  ]
+}

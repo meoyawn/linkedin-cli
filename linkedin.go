@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // Observed persisted query IDs are shared API identifiers, not credentials.
@@ -17,6 +18,7 @@ const (
 	companyQueryID = "voyagerOrganizationDashCompanies.513e1fead204f45d2d951de15bb8461d"
 	peopleQueryID  = "voyagerSearchDashClusters.e438ab99259203e9c1cd3f358e217282"
 	pageSize       = 49
+	requestSpacing = 2 * time.Second
 )
 
 var (
@@ -81,13 +83,17 @@ type person struct {
 }
 
 type peopleResult struct {
-	Company   companyRef `json:"company"`
-	People    []person   `json:"people"`
-	Total     int        `json:"total"`
-	Returned  int        `json:"returned"`
-	Start     int        `json:"start"`
-	HasMore   bool       `json:"has_more"`
-	NextStart *int       `json:"next_start"`
+	Company companyRef `json:"company"`
+	searchResult
+}
+
+type searchResult struct {
+	People    []person `json:"people"`
+	Total     int      `json:"total"`
+	Returned  int      `json:"returned"`
+	Start     int      `json:"start"`
+	HasMore   bool     `json:"has_more"`
+	NextStart *int     `json:"next_start"`
 }
 
 type peopleOptions struct {
@@ -97,8 +103,10 @@ type peopleOptions struct {
 }
 
 type linkedinClient struct {
-	http    *http.Client
-	session session
+	http            *http.Client
+	session         session
+	lastRequestAt   time.Time
+	mutualsResponse io.Writer
 }
 
 type graphResponse struct {
@@ -157,44 +165,80 @@ type searchCollection struct {
 func (c *linkedinClient) query(ctx context.Context, queryID, variables string) (graphResponse, error) {
 	// Rest.li's parentheses, commas, and colons must remain literal. Applying
 	// url.Values.Encode to this expression makes LinkedIn reject it with HTTP 400.
-	// All variable values are validated slugs or decimal IDs/offsets.
+	// Variable values are validated identifiers or decimal IDs/offsets.
 	query := "includeWebMetadata=true&variables=" + variables + "&queryId=" + queryID
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://www.linkedin.com/voyager/api/graphql?"+query, nil)
-	if err != nil {
-		return graphResponse{}, fmt.Errorf("construct LinkedIn request: %w", err)
+	var result graphResponse
+	if err := c.getJSON(ctx, "/voyager/api/graphql?"+query, &result); err != nil {
+		return graphResponse{}, err
 	}
-	req.Header.Set("Accept", "application/vnd.linkedin.normalized+json+2.1")
+	if len(result.Errors) > 0 || len(result.Data.Errors) > 0 {
+		return graphResponse{}, fmt.Errorf("LinkedIn rejected persisted query %s; its API may have changed", queryID)
+	}
+	return result, nil
+}
+
+func (c *linkedinClient) getJSON(ctx context.Context, path string, result any) error {
+	resp, err := c.get(ctx, path, http.Header{"Accept": {"application/vnd.linkedin.normalized+json+2.1"}})
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 32<<20)).Decode(result); err != nil {
+		return fmt.Errorf("LinkedIn did not return valid API JSON; check your browser session and run linkedin auth login again")
+	}
+	return nil
+}
+
+func (c *linkedinClient) get(ctx context.Context, path string, headers http.Header) (*http.Response, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	// Space requests within a command; cancellation must not trigger another
+	// request while waiting. Callers should also run commands sequentially.
+	if delay := time.Until(c.lastRequestAt.Add(requestSpacing)); delay > 0 {
+		timer := time.NewTimer(delay)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://www.linkedin.com"+path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("construct LinkedIn request: %w", err)
+	}
+	for key, values := range headers {
+		req.Header[key] = values
+	}
 	req.Header.Set("X-Restli-Protocol-Version", "2.0.0")
 	req.Header.Set("X-Li-Lang", "en_US")
 	req.Header.Set("Csrf-Token", c.session.JSessionID)
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36")
 	req.AddCookie(&http.Cookie{Name: "li_at", Value: c.session.LIAT})
 	req.AddCookie(&http.Cookie{Name: "JSESSIONID", Value: c.session.JSessionID, Quoted: true})
+	c.lastRequestAt = time.Now()
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return graphResponse{}, fmt.Errorf("request LinkedIn: %w", err)
+		return nil, fmt.Errorf("request LinkedIn: %w", err)
 	}
-	defer resp.Body.Close()
+	var statusError error
 	switch resp.StatusCode {
 	case http.StatusOK:
+		return resp, nil
 	case http.StatusUnauthorized, http.StatusForbidden, 999:
-		return graphResponse{}, fmt.Errorf("LinkedIn returned HTTP %d: sign in in your browser, complete any checkpoint, and run linkedin auth login again", resp.StatusCode)
+		statusError = fmt.Errorf("LinkedIn returned HTTP %d: sign in in your browser, complete any checkpoint, and run linkedin auth login again", resp.StatusCode)
 	case http.StatusTooManyRequests:
-		return graphResponse{}, fmt.Errorf("LinkedIn rate limit (HTTP 429); try later (Retry-After: %q)", resp.Header.Get("Retry-After"))
+		statusError = fmt.Errorf("LinkedIn rate limit (HTTP 429); try later (Retry-After: %q)", resp.Header.Get("Retry-After"))
 	default:
 		if resp.StatusCode >= 300 && resp.StatusCode < 400 {
-			return graphResponse{}, fmt.Errorf("LinkedIn redirected the request (HTTP %d); sign in in your browser and run linkedin auth login again", resp.StatusCode)
+			statusError = fmt.Errorf("LinkedIn redirected the request (HTTP %d); sign in in your browser and run linkedin auth login again", resp.StatusCode)
+		} else {
+			statusError = fmt.Errorf("LinkedIn returned HTTP %d", resp.StatusCode)
 		}
-		return graphResponse{}, fmt.Errorf("LinkedIn returned HTTP %d", resp.StatusCode)
 	}
-	var result graphResponse
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 32<<20)).Decode(&result); err != nil {
-		return graphResponse{}, fmt.Errorf("LinkedIn did not return valid API JSON; check your browser session and run linkedin auth login again")
-	}
-	if len(result.Errors) > 0 || len(result.Data.Errors) > 0 {
-		return graphResponse{}, fmt.Errorf("LinkedIn rejected persisted query %s; its API may have changed", queryID)
-	}
-	return result, nil
+	resp.Body.Close()
+	return nil, statusError
 }
 
 func (c *linkedinClient) resolve(ctx context.Context, company companyRef) (companyRef, error) {
@@ -223,7 +267,16 @@ func (c *linkedinClient) people(ctx context.Context, company companyRef, opts pe
 	if err != nil {
 		return peopleResult{}, err
 	}
-	result := peopleResult{Company: company, People: []person{}, Start: opts.start}
+	query := fmt.Sprintf("flagshipSearchIntent:ORGANIZATIONS_PEOPLE_ALUMNI,queryParameters:List((key:currentCompany,value:List(%s)),(key:resultType,value:List(ORGANIZATION_ALUMNI)))", company.ID)
+	result, err := c.searchPeople(ctx, query, opts)
+	if err != nil {
+		return peopleResult{}, err
+	}
+	return peopleResult{Company: company, searchResult: result}, nil
+}
+
+func (c *linkedinClient) searchPeople(ctx context.Context, query string, opts peopleOptions) (searchResult, error) {
+	result := searchResult{People: []person{}, Start: opts.start}
 	seen := make(map[string]bool)
 	start := opts.start
 	for {
@@ -231,29 +284,33 @@ func (c *linkedinClient) people(ctx context.Context, company companyRef, opts pe
 		if !opts.all {
 			count = min(count, opts.limit-len(result.People))
 		}
-		variables := fmt.Sprintf("(start:%d,origin:FACETED_SEARCH,query:(flagshipSearchIntent:ORGANIZATIONS_PEOPLE_ALUMNI,queryParameters:List((key:currentCompany,value:List(%s)),(key:resultType,value:List(ORGANIZATION_ALUMNI))),includeFiltersInResponse:false),count:%d)", start, company.ID, count)
+		variables := fmt.Sprintf("(start:%d,origin:FACETED_SEARCH,query:(%s,includeFiltersInResponse:false),count:%d)", start, query, count)
 		response, err := c.query(ctx, peopleQueryID, variables)
 		if err != nil {
-			return peopleResult{}, fmt.Errorf("fetch people at offset %d: %w", start, err)
+			return searchResult{}, fmt.Errorf("fetch people at offset %d: %w", start, err)
 		}
 		page := response.Data.Data.Search
 		if page == nil || page.Paging == nil {
-			return peopleResult{}, fmt.Errorf("LinkedIn people response has changed (missing searchDashClustersByAll or paging)")
+			return searchResult{}, fmt.Errorf("LinkedIn people response has changed (missing searchDashClustersByAll or paging)")
 		}
 		if len(page.Metadata.Blocked) > 0 && string(page.Metadata.Blocked) != "null" {
-			return peopleResult{}, fmt.Errorf("LinkedIn blocked the people search; check the search in your browser")
+			return searchResult{}, fmt.Errorf("LinkedIn blocked the people search; check the search in your browser")
 		}
 		if page.Paging.Start != start || page.Paging.Count <= 0 || page.Paging.Count > count || page.Paging.Total < 0 {
-			return peopleResult{}, fmt.Errorf("LinkedIn returned unexpected paging at offset %d", start)
+			return searchResult{}, fmt.Errorf("LinkedIn returned unexpected paging at offset %d", start)
 		}
 		people, err := page.people(response.Included)
 		if err != nil {
-			return peopleResult{}, err
+			return searchResult{}, err
 		}
-		result.Total = page.Paging.Total
+		total := page.Paging.Total
 		if page.Metadata.Total != nil {
-			result.Total = *page.Metadata.Total
+			total = *page.Metadata.Total
 		}
+		if total == 0 && result.Total > 0 {
+			return searchResult{}, fmt.Errorf("LinkedIn stopped returning results at offset %d after reporting %d; search may be restricted", start, result.Total)
+		}
+		result.Total = total
 		previousCount := len(result.People)
 		for _, p := range people {
 			key := p.ProfileURN
@@ -267,11 +324,11 @@ func (c *linkedinClient) people(ctx context.Context, company companyRef, opts pe
 		}
 		next := start + page.Paging.Count
 		if next <= start {
-			return peopleResult{}, fmt.Errorf("LinkedIn pagination did not advance from offset %d", start)
+			return searchResult{}, fmt.Errorf("LinkedIn pagination did not advance from offset %d", start)
 		}
 		result.HasMore = next < result.Total && len(people) > 0
 		if len(people) == 0 && start < result.Total {
-			return peopleResult{}, fmt.Errorf("LinkedIn returned no people at offset %d despite reporting %d results; search may be restricted", start, result.Total)
+			return searchResult{}, fmt.Errorf("LinkedIn returned no people at offset %d despite reporting %d results; search may be restricted", start, result.Total)
 		}
 		if result.HasMore {
 			result.NextStart = &next
@@ -282,7 +339,7 @@ func (c *linkedinClient) people(ctx context.Context, company companyRef, opts pe
 			break
 		}
 		if len(result.People) == previousCount {
-			return peopleResult{}, fmt.Errorf("LinkedIn repeated a page at offset %d; stopped to avoid unnecessary requests", start)
+			return searchResult{}, fmt.Errorf("LinkedIn repeated a page at offset %d; stopped to avoid unnecessary requests", start)
 		}
 		start = next
 	}

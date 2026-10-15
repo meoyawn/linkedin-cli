@@ -1,6 +1,6 @@
 # linkedin
 
-A Go CLI that returns LinkedIn company people as JSON using your browser's
+A Go CLI that returns LinkedIn company people, profiles, and mutual connections as JSON using your browser's
 signed-in session. Cookie import uses [SweetCookie](https://github.com/steipete/sweetcookie/).
 
 ```sh
@@ -21,6 +21,8 @@ replace them with the company you want to look up.
 ```sh
 linkedin --help
 linkedin companies people --help
+linkedin people profile --help
+linkedin people mutuals --help
 linkedin auth login --help
 ```
 
@@ -82,6 +84,33 @@ which can change or be restricted by your account.
 Successful commands emit JSON to stdout. Help is plain text. Diagnostics go to
 stderr; failures exit nonzero without emitting a partial result.
 
+## Profiles and referral introductions
+
+```sh
+linkedin people profile example-person
+linkedin people profile https://www.linkedin.com/in/example-person/
+linkedin people mutuals example-person --limit 3
+linkedin people mutuals urn:li:fsd_profile:ACoExample
+```
+
+`people profile` returns the name, headline, summary, canonical profile URL,
+available location, and profile/member URNs in one API request. It does not
+export private contact fields or fetch the full experience history.
+
+`people mutuals` uses the authenticated search document request captured from
+LinkedIn's mutual-connections view. It reads up to 10 shared first-degree
+connections from the first page and reports `has_more` without fetching another
+page. `--limit` accepts 1–10. Profile URNs skip the profile lookup; slugs/URLs
+need one extra API request. It parses result cards using semantic attributes,
+ignoring sidebar/related-person links and scripts. An unrecognized response or
+non-first-degree result fails explicitly. No scripts, analytics, messages, or
+connection requests are executed. Results are potential introduction paths;
+willingness to refer remains unconfirmed.
+
+To inspect a changed response, pass `--save-response private/mutuals.html`
+after creating the ignored `private/` directory. The new capture file is written
+with mode 0600 and is never overwritten. It can contain private profile data.
+
 ## HTTP budget
 
 The people API accepts the company ID directly, so no general search or HTML
@@ -90,8 +119,18 @@ page load is needed.
 - Slug or slug URL: one lookup, then one request per page.
 - Numeric ID, ID URL, or organization URN: one request per page.
 - Pages request up to 49 people, with smaller counts for the final limit.
+- Requests within one command start at least two seconds apart. Run separate
+  commands sequentially and wait at least two seconds between them; independent
+  processes do not share a rate limiter. These are local operating defaults,
+  not published LinkedIn safe limits.
 - No browser navigation, profile-by-profile lookups, analytics, or eager
   pagination. No automatic retries on failures or rate limits.
+
+Authentication redirects, checkpoints, and rate limits stop the command; it
+does not attempt to work around them. Re-import cookies after signing in again.
+A later page that unexpectedly reports zero total results fails explicitly
+instead of claiming an incomplete export is complete. These limits reduce
+unnecessary traffic; unofficial API access can still trigger LinkedIn checks.
 
 This uses LinkedIn's browser API and observed persisted query IDs.
 If LinkedIn changes that API, the CLI reports an error. HAR files, credentials,

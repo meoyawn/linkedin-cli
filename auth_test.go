@@ -74,6 +74,12 @@ func TestInvalidInputsFailBeforeAuthentication(t *testing.T) {
 		{"companies", "people", "example-company", "--start=-1"},
 		{"companies", "people", "https://example.com/company/test"},
 		{"companies", "people", "example-company,other"},
+		{"people", "profile", "https://example.com/in/person"},
+		{"people", "profile", "urn:li:fsd_profile:bad,id"},
+		{"people", "profile", "https://www.linkedin.com/in/example-person/posts/"},
+		{"people", "mutuals", "example-person", "--limit=0"},
+		{"people", "mutuals", "example-person", "--limit=11"},
+		{"people", "mutuals", "example-person,other"},
 		{"auth", "login", "--browser", "unknown"},
 		{"auth", "login", "--cookies-file", "file", "--browser", "chrome"},
 	} {

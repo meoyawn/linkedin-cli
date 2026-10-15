@@ -6,13 +6,15 @@ import (
 	"strings"
 )
 
-const rootHelp = `LinkedIn company people, as JSON.
+const rootHelp = `LinkedIn company people, profiles, and mutual connections, as JSON.
 
 Usage:
   linkedin <command> [flags]
 
 Commands:
   companies people <company>  List people at a company
+  people profile <person>     Read a profile and its summary
+  people mutuals <person>     Find shared first-degree connections
   auth login                  Import browser cookies with SweetCookie
   auth status                 Check saved cookies locally
   auth logout                 Remove saved cookies
@@ -82,6 +84,67 @@ numeric IDs skip it. Requests are not retried automatically.
 
 Output includes company, people, total, returned, start, has_more, and next_start.
 Use next_start with --start to continue. Errors exit nonzero without partial JSON.
+`
+
+const profilesHelp = `Read LinkedIn profiles and find referral introduction paths.
+
+Usage:
+  linkedin people <command> <person> [flags]
+
+Commands:
+  profile <person>            Read profile name, headline, summary, and identifiers
+  mutuals <person>            Read up to 10 mutual connections from the first page
+
+Accepts a profile slug, https://www.linkedin.com/in/<person>/ URL, or a
+urn:li:fsd_profile identifier from companies people output.
+
+Run 'linkedin people <command> --help' for options.
+`
+
+const profileHelp = `Read a LinkedIn profile as JSON.
+
+Usage:
+  linkedin people profile <person>
+
+Arguments:
+  <person>                   Profile slug, /in/ URL, or urn:li:fsd_profile identifier
+
+Options:
+  -h, --help                 Show help
+
+Examples:
+  linkedin people profile example-person
+  linkedin people profile https://www.linkedin.com/in/example-person/
+
+One authenticated API request returns name, headline, summary, profile URL,
+available location, and profile/member URNs. No browser navigation or messages.
+`
+
+const mutualsHelp = `Find shared first-degree connections with a LinkedIn person.
+
+Usage:
+  linkedin people mutuals <person> [--limit N]
+
+Arguments:
+  <person>                   Profile slug, /in/ URL, or urn:li:fsd_profile identifier
+
+Options:
+      --limit N              Maximum contacts from the first page (1–10, default: 10)
+      --save-response PATH   Save fetched HTML to a new file (0600); may contain private data
+  -h, --help                 Show help
+
+Examples:
+  linkedin people mutuals example-person
+  linkedin people mutuals https://www.linkedin.com/in/example-person/ --limit 3
+  linkedin people mutuals urn:li:fsd_profile:ACoExample
+
+One authenticated document GET reads the first page. Slugs/URLs need one prior
+profile lookup; known profile URNs skip it. has_more reports additional results
+without fetching them. No --all or automatic pagination. No scripts, analytics,
+messages, or connection requests are executed. Names are potential introduction
+paths; a result does not establish willingness to refer you.
+
+Output includes profile, search_url, people, returned, and has_more.
 `
 
 const authHelp = `Manage the browser cookies used to sign in to LinkedIn.
@@ -170,6 +233,12 @@ func writeHelp(w io.Writer, commands []string) error {
 		help = companiesHelp
 	case "companies people":
 		help = fmt.Sprintf(peopleHelp, pageSize, pageSize)
+	case "people":
+		help = profilesHelp
+	case "people profile":
+		help = profileHelp
+	case "people mutuals":
+		help = mutualsHelp
 	case "auth":
 		help = authHelp
 	case "auth login":

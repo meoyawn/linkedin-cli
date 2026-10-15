@@ -3,6 +3,7 @@
 /linkedin-cli
 /dist/
 /coverage/
+/private/
 *.test
 *.out
 *.log

@@ -1,0 +1,96 @@
+package main
+
+import (
+	"context"
+	"io"
+	"net/http"
+	"os"
+	"strings"
+	"testing"
+)
+
+// Synthetic markup retains the captured SDUI structure, including nested links
+// and related people inside cards that must not become introduction candidates.
+func TestMutualsReadsCapturedDocumentRequestAndOnlyPrimaryResults(t *testing.T) {
+	body, err := os.ReadFile("testdata/mutuals.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, input := range []string{"urn:li:fsd_profile:ACoExamplePerson", "example-person"} {
+		t.Run(input, func(t *testing.T) {
+			calls := 0
+			client := linkedinClient{http: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				calls++
+				if r.URL.Path == "/voyager/api/identity/dash/profiles" && input == "example-person" && calls == 1 {
+					return jsonResponse(fixture(t, "profile")), nil
+				}
+				q := r.URL.Query()
+				if r.Method != http.MethodGet || r.URL.Path != "/search/results/people/" || r.Header.Get("Accept") != "text/html" ||
+					q.Get("origin") != "MEMBER_PROFILE_CANNED_SEARCH" || q.Get("network") != `["F"]` || q.Get("connectionOf") != `["ACoExamplePerson"]` || len(q) != 3 {
+					t.Fatalf("request does not match the captured mutual view: %s %s", r.Method, r.URL)
+				}
+				return jsonResponse(body), nil
+			})}}
+			ref, err := parseProfile(input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := client.mutuals(context.Background(), ref, 3)
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantCalls := 1
+			if input == "example-person" {
+				wantCalls = 2
+			}
+			if calls != wantCalls || result.Returned != 3 || !result.HasMore || len(result.People) != 3 {
+				t.Fatalf("unexpected budget or results: calls=%d result=%+v", calls, result)
+			}
+			for i, p := range result.People {
+				wantName := []string{"First Mutual", "Second Mutual", "Third Mutual"}[i]
+				wantSlug := []string{"first-mutual", "second-mutual", "third-mutual"}[i]
+				if p.Name != wantName || p.URL != "https://www.linkedin.com/in/"+wantSlug+"/" || p.ConnectionDegree != "1st" {
+					t.Fatalf("non-primary or incorrectly parsed result: %+v", p)
+				}
+			}
+			if p := result.People[0]; p.Headline != "Senior Go & Platform Engineer" || p.Location != "Test City" || p.ProfileURN != "urn:li:fsd_profile:ACoFirstMutual" {
+				t.Fatalf("incorrect mutual fields: %+v", p)
+			}
+			if p := result.People[2]; p.Headline != "" || p.Location != "" {
+				t.Fatalf("invented optional profile fields: %+v", p)
+			}
+		})
+	}
+}
+
+func TestMutualsFailsClosedWithoutRetryingOrEmittingPartialPeople(t *testing.T) {
+	body, err := os.ReadFile("testdata/mutuals.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, body, want string
+		status           int
+	}{
+		{"rate limit", "", "rate limit", 429},
+		{"login", "<html><form>Sign in</form></html>", "checkpoint", 200},
+		{"changed", `<div data-sdui-screen="com.linkedin.sdui.flagshipnav.search.SearchResultsPeople"></div>`, "no recognizable", 200},
+		{"wrong scope", strings.Replace(string(body), "Second Mutual<span> • 1st", "Second Mutual<span> • 2nd", 1), "first-degree", 200},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			client := linkedinClient{http: &http.Client{Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+				calls++
+				return &http.Response{StatusCode: tc.status, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(tc.body))}, nil
+			})}}
+			ref, err := parseProfile("urn:li:fsd_profile:ACoExamplePerson")
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := client.mutuals(context.Background(), ref, 10)
+			if err == nil || !strings.Contains(err.Error(), tc.want) || calls != 1 || len(result.People) != 0 {
+				t.Fatalf("calls=%d result=%+v err=%v", calls, result, err)
+			}
+		})
+	}
+}
