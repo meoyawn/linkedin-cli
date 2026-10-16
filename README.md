@@ -143,6 +143,13 @@ No historical pagination is performed. Sending first checks that page for an
 identical outgoing message and returns `already_present:true` without sending
 it again. This does not search older messages or prevent concurrent sends.
 
+Read output preserves `renderContent`, including InMail's `hostUrnData.type`.
+LinkedIn's message presenter suppresses the normal sent indicator when the
+message subtype is `INMAIL`, including free Open Profile InMail. Becoming
+connections does not reclassify an existing InMail message. A stored message,
+`deliveredAt`, or `sent:true` receipt confirms server acceptance, not that the
+recipient has received or read it.
+
 An actual send makes a single POST using the observed `createMessage` contract.
 Only a matching server receipt is reported as `sent:true`. No send is retried
 automatically. After an uncertain outcome, read the conversation and inspect

@@ -43,6 +43,7 @@ type messengerMessage struct {
 	DeliveredAt     int64                `json:"deliveredAt"`
 	Sender          messagingParticipant `json:"sender"`
 	SenderURN       string               `json:"senderUrn,omitempty"`
+	RenderContent   []json.RawMessage    `json:"renderContent,omitempty"`
 }
 
 type messengerConversation struct {

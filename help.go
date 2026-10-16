@@ -196,6 +196,9 @@ Resolves the signed-in mailbox and recipient, verifies a direct conversation,
 and reads one page of recent messages. No pagination or read receipts.
 An empty conversation list is returned as messages:[]; unexpected or ambiguous
 responses fail. Returned text and identifiers may contain private data.
+Render content is preserved, including hostUrnData that identifies InMail.
+A stored message or deliveredAt timestamp does not establish recipient delivery
+or reading. LinkedIn hides the normal sent checkmark for InMail messages.
 `
 
 const messagesSendHelp = `Preview or send an approved LinkedIn message.

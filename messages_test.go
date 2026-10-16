@@ -111,6 +111,36 @@ func TestMessagesReadVerifiesDirectParticipants(t *testing.T) {
 	}
 }
 
+func TestMessagesReadRetainsInMailMetadata(t *testing.T) {
+	// Captured from the message query: an accepted InMail has deliveredAt,
+	// but its hostUrnData makes LinkedIn hide the normal sent checkmark.
+	const messages = `{"data":{"messengerMessagesBySyncToken":{"elements":[{"entityUrn":"message-1","deliveredAt":1234,"body":{"text":"Hello"},"sender":{"hostIdentityUrn":"urn:li:fsd_profile:ACoSelf"},"renderContent":[{"hostUrnData":{"type":"PREMIUM_INMAIL","hostUrn":"urn:li:fsd_profile:dummyId"}}]}]}}}`
+	client := messageTestClient(t, testConversationJSON, messages, nil)
+	result, err := client.messages(context.Background(), profileRef{Slug: "example-person"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var output struct {
+		Messages []struct {
+			RenderContent []struct {
+				HostURNData struct {
+					Type string `json:"type"`
+				} `json:"hostUrnData"`
+			} `json:"renderContent"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal(encoded, &output); err != nil {
+		t.Fatal(err)
+	}
+	if len(output.Messages) != 1 || len(output.Messages[0].RenderContent) != 1 || output.Messages[0].RenderContent[0].HostURNData.Type != "PREMIUM_INMAIL" {
+		t.Fatalf("read output discarded InMail metadata needed to interpret sent indicators: %s", encoded)
+	}
+}
+
 func TestMessagePreviewAndDuplicateDoNotSend(t *testing.T) {
 	const text = "Привет!\nhttps://example.com/"
 	for _, tc := range []struct {
